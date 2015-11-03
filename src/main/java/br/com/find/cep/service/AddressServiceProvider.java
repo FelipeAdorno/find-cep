@@ -2,8 +2,11 @@ package br.com.find.cep.service;
 
 
 import br.com.find.cep.exception.AddressNotFoundException;
-import br.com.find.cep.resource.AddressResponse;
+import br.com.find.cep.resource.AddressRequest;
 import org.springframework.stereotype.Service;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * The type Address service.
@@ -19,21 +22,60 @@ public class AddressServiceProvider implements AddressService {
 
     private static final Integer MAX_REPLACE_WITH_ZERO = 3;
 
-    public AddressResponse findAddressByCep(String cep) {
-        Integer countCepFind = 0;
-        AddressResponse addressResponse = findCep(cep);
+    private Map<String, AddressRequest> addressResponses = new HashMap<>();
 
-        while (addressResponse == null && countCepFind <= MAX_REPLACE_WITH_ZERO) {
+    @Override
+    public void saveAddress(final AddressRequest addressRequest) {
+        if(findCep(addressRequest.getCep()) != null) {
+            addressResponses.put(addressRequest.getId(), addressRequest);
+        } else {
+            throw new AddressNotFoundException("O CEP digitado é invalido");
+        }
+    }
+
+    @Override
+    public void updateAddress(final AddressRequest addressRequest) {
+        if(addressResponses.containsKey(addressRequest.getId())) {
+            saveAddress(addressRequest);
+        } else {
+            throw new AddressNotFoundException("Endereço não encontrado!");
+        }
+    }
+
+    @Override
+    public AddressRequest findAddressById(final String id) {
+        AddressRequest addressRequest = addressResponses.get(id);
+        if(addressRequest == null) {
+            throw new AddressNotFoundException("Endereço não encontrado!");
+        }
+        return addressRequest;
+    }
+
+    @Override
+    public void removeAddressById(final String id) {
+        if(addressResponses.containsKey(id)) {
+            addressResponses.remove(id);
+        } else {
+            throw new AddressNotFoundException("Endereço não encontrado!");
+        }
+    }
+
+    @Override
+    public AddressRequest findAddressByCep(String cep) {
+        Integer countCepFind = 0;
+        AddressRequest addressRequest = findCep(cep);
+
+        while (addressRequest == null && countCepFind <= MAX_REPLACE_WITH_ZERO) {
             countCepFind++;
             cep = replaceWithZero(cep, countCepFind);
-            addressResponse = findCep(cep);
+            addressRequest = findCep(cep);
         }
 
-        if(addressResponse == null) {
-            throw new AddressNotFoundException();
+        if(addressRequest == null) {
+            throw new AddressNotFoundException("Endereço não encontrado!");
         }
 
-        return addressResponse;
+        return addressRequest;
     }
 
     private String replaceWithZero(String cep, Integer countCepFind) {
@@ -42,18 +84,17 @@ public class AddressServiceProvider implements AddressService {
         return stringBuffer.toString();
     }
 
-    private AddressResponse findCep(final String cep) {
+    private AddressRequest findCep(final String cep) {
 
         //MOCK CEP TO TEST
         if(cep.equals(SANTA_RITA_SAPUCAI)) {
-            return new AddressResponse("Rua 1", "Fernandes", "Santa Rita do Sapucaí", "MG");
+            return new AddressRequest("Rua 1", "Fernandes", "Santa Rita do Sapucaí", "MG");
         } else if(cep.equals(SEBASTIAO_SOARES_DE_FARIA)) {
-            return new AddressResponse("Rua Prof. Sebastião Soares de Faria", "Bela Vista", "São Paulo", "SP");
+            return new AddressRequest("Rua Prof. Sebastião Soares de Faria", "Bela Vista", "São Paulo", "SP");
         } else if(cep.equals(DOUTOR_SIQUEIRA_CAMPOS)) {
-            return new AddressResponse("Rua Dr. Siqueira Campos", "Liberdade", "São Paulo", "SP");
+            return new AddressRequest("Rua Dr. Siqueira Campos", "Liberdade", "São Paulo", "SP");
         }
 
         return null;
     }
-
 }

@@ -4,6 +4,7 @@ import br.com.find.cep.aspect.Message;
 import br.com.find.cep.aspect.MessageType;
 import br.com.find.cep.run.FindPostalCodeProject;
 import junit.framework.TestCase;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.boot.test.IntegrationTest;
@@ -15,7 +16,10 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.web.WebAppConfiguration;
 
+import java.util.Collections;
+
 import static org.junit.Assert.*;
+
 
 /**
  * The type Address resource test.
@@ -31,83 +35,126 @@ public class AddressResourceTest extends TestCase {
     private static final String ADDRESS_RESOURCE = "http://localhost:8000/cep-api/address/";
 
     @Test
-    public void testFindAddressWithWrongCep() throws Exception {
-        Message expectedMessage = new Message(MessageType.Business_Logic_Error, "Endereço não encontrado!");
-        ResponseEntity<Message> response = callAPItoGetError("12345678");
+    public void testGetAddressById() throws Exception {
+        AddressRequest expected = createAddress();
+        ResponseEntity<AddressRequest> responseSave = postAddressAPI(expected);
+
+        //set generate id in expected object
+        expected.setId(responseSave.getBody().getId());
+
+        ResponseEntity<AddressRequest> response = callAddressAPI(expected.getId());
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(expected, response.getBody());
+    }
+
+    @Test
+    public void testDeleteAddressById() throws Exception {
+        AddressRequest expected = createAddress();
+        ResponseEntity<AddressRequest> responseSave = postAddressAPI(expected);
+
+        //set generate id in expected object
+        expected.setId(responseSave.getBody().getId());
+
+        new TestRestTemplate().delete(ADDRESS_RESOURCE+expected.getId());
+
+        Message message = new Message(MessageType.Business_Logic_Error, "Endereço não encontrado!");
+
+        ResponseEntity<Message> response = callAPItoGetError(expected.getId());
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertEquals(expectedMessage, response.getBody());
+        assertEquals(message, response.getBody());
     }
 
     @Test
-    public void testFindSiqueiraCamposAddress() throws Exception {
-        AddressResponse siqueiraCampos = new AddressResponse("Rua Dr. Siqueira Campos", "Liberdade", "São Paulo", "SP");
+    public void testSaveAddressWithValidCEP() throws Exception {
+        AddressRequest expected = createAddress();
+        ResponseEntity<AddressRequest> response = postAddressAPI(expected);
 
-        ResponseEntity<AddressResponse> response = callAPItoGetAddress("01509020");
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(siqueiraCampos, response.getBody());
+        //set generate id in expected object
+        expected.setId(response.getBody().getId());
+
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        assertEquals(expected, response.getBody());
     }
 
     @Test
-    public void testFindSebastiaoSoaresAddress() throws Exception {
-        AddressResponse sebastiaoSoares = new AddressResponse(
-                "Rua Prof. Sebastião Soares de Faria", "Bela Vista", "São Paulo", "SP");
+    public void testSaveAddressWithInvalidCEP() throws Exception {
+        Message message = new Message(MessageType.Business_Logic_Error, "O CEP digitado é invalido");
+        AddressRequest expected = createAddress();
+        expected.setCep("12345678");
 
-        ResponseEntity<AddressResponse> response = callAPItoGetAddress("01317010");
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(sebastiaoSoares, response.getBody());
+        ResponseEntity<Message> response = postAddressAPIError(expected);
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertEquals(message, response.getBody());
     }
 
     @Test
-    public void testFindSantaRitaAddressWithWrongCepNoZero() throws Exception {
-        AddressResponse santaRita = new AddressResponse("Rua 1", "Fernandes", "Santa Rita do Sapucaí", "MG");
+    public void testSaveAddressWithInvalidFields() throws Exception {
+        Message message = new Message(MessageType.Parameter_Error, "Erro de validação");
+        message.addNotification("Preencha o campo número!");
+        message.addNotification("Preencha o campo estado!");
+        message.addNotification("Preencha o campo CEP!");
+        message.addNotification("Preencha o campo cidade!");
+        message.addNotification("Preencha o campo rua!");
+        Collections.sort(message.getNotifications());
 
-        ResponseEntity<AddressResponse> response = callAPItoGetAddress("37540123");
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(santaRita, response.getBody());
-    }
+        AddressRequest expected = createAddress();
+        expected.setStreet(null);
+        expected.setCep(null);
+        expected.setNumber(null);
+        expected.setCity(null);
+        expected.setState(null);
 
-    @Test
-    public void testFindSantaRitaAddressWithWrongCepOneZero() throws Exception {
-        AddressResponse santaRita = new AddressResponse("Rua 1", "Fernandes", "Santa Rita do Sapucaí", "MG");
 
-        ResponseEntity<AddressResponse> response = callAPItoGetAddress("37540120");
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(santaRita, response.getBody());
-    }
+        ResponseEntity<Message> response = postAddressAPIError(expected);
+        Collections.sort(response.getBody().getNotifications());
 
-    @Test
-    public void testFindSantaRitaAddressWithWrongCepTwoZero() throws Exception {
-        AddressResponse santaRita = new AddressResponse("Rua 1", "Fernandes", "Santa Rita do Sapucaí", "MG");
-
-        ResponseEntity<AddressResponse> response = callAPItoGetAddress("37540100");
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(santaRita, response.getBody());
-    }
-
-    @Test
-    public void testFindSantaRitaAddressWithWrongCepThreeZero() throws Exception {
-        AddressResponse santaRita = new AddressResponse("Rua 1", "Fernandes", "Santa Rita do Sapucaí", "MG");
-
-        ResponseEntity<AddressResponse> response = callAPItoGetAddress("37540100");
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(santaRita, response.getBody());
-    }
-
-    @Test
-    public void testGetAddressByCepWihtInvalidCep() throws Exception {
-        Message expectedMessage = new Message(MessageType.Parameter_Error, "Erro de validação");
-        expectedMessage.addNotification("CEP inválido");
-
-        ResponseEntity<Message> response = callAPItoGetError("375400008");
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertEquals(expectedMessage, response.getBody());
+        assertEquals(message, response.getBody());
     }
 
-    private ResponseEntity<Message> callAPItoGetError(final String cep) {
-        return new TestRestTemplate().getForEntity(ADDRESS_RESOURCE + cep, Message.class);
+    @Test
+    public void testEditAddress() throws Exception {
+        AddressRequest expected = createAddress();
+        ResponseEntity<AddressRequest> response = postAddressAPI(expected);
+
+        //set generate id in expected object
+        expected.setId(response.getBody().getId());
+        expected.setCity("Santa Rita do Sapucai");
+
+        new TestRestTemplate().put(ADDRESS_RESOURCE, expected);
+
+        ResponseEntity<AddressRequest> responseEdited = callAddressAPI(expected.getId());
+        assertEquals(HttpStatus.OK, responseEdited.getStatusCode());
+        assertEquals(expected, responseEdited.getBody());
+
+
     }
 
-    private ResponseEntity<AddressResponse> callAPItoGetAddress(final String cep) {
-        return new TestRestTemplate().getForEntity(ADDRESS_RESOURCE + cep, AddressResponse.class);
+    private AddressRequest createAddress() {
+        AddressRequest expectedAddressRequest = new AddressRequest();
+        expectedAddressRequest.setStreet("Rua1");
+        expectedAddressRequest.setState("SP");
+        expectedAddressRequest.setDistrict("Bela Vista");
+        expectedAddressRequest.setCep("01317010");
+        expectedAddressRequest.setCity("São Paulo");
+        expectedAddressRequest.setComplement("Sem complemento");
+        expectedAddressRequest.setNumber(28L);
+        return expectedAddressRequest;
+    }
+
+    private ResponseEntity<Message> callAPItoGetError(final String id) {
+        return new TestRestTemplate().getForEntity(ADDRESS_RESOURCE + id, Message.class);
+    }
+
+    private ResponseEntity<AddressRequest> callAddressAPI(final String id) {
+        return new TestRestTemplate().getForEntity(ADDRESS_RESOURCE + id, AddressRequest.class);
+    }
+
+    private ResponseEntity<Message> postAddressAPIError(final AddressRequest addressRequest) {
+        return new TestRestTemplate().postForEntity(ADDRESS_RESOURCE, addressRequest, Message.class);
+    }
+
+    private ResponseEntity<AddressRequest> postAddressAPI(final AddressRequest addressRequest) {
+        return new TestRestTemplate().postForEntity(ADDRESS_RESOURCE, addressRequest, AddressRequest.class);
     }
 }
